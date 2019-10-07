@@ -1,30 +1,39 @@
 #include <application.h>
 
-#define SERVICE_INTERVAL_INTERVAL (60 * 60 * 1000)
-#define BATTERY_UPDATE_INTERVAL (60 * 60 * 1000)
+#define SECOND (1000)
+#define MINUTE (60 * SECOND)
+#define HOUR (60 * MINUTE)
 
-#define TEMPERATURE_TAG_PUB_NO_CHANGE_INTEVAL (15 * 60 * 1000)
+#define SERVICE_INTERVAL_INTERVAL (HOUR)
+#define BATTERY_UPDATE_INTERVAL (HOUR)
+
+#define TEMPERATURE_TAG_PUB_NO_CHANGE_INTEVAL (15 * MINUTE)
 #define TEMPERATURE_TAG_PUB_VALUE_CHANGE 0.2f
-#define TEMPERATURE_UPDATE_SERVICE_INTERVAL (5 * 1000)
-#define TEMPERATURE_UPDATE_NORMAL_INTERVAL (10 * 1000)
+#define TEMPERATURE_UPDATE_SERVICE_INTERVAL (5 * MINUTE)
+#define TEMPERATURE_UPDATE_NORMAL_INTERVAL (10 * MINUTE)
 
-#define HUMIDITY_TAG_PUB_NO_CHANGE_INTEVAL (15 * 60 * 1000)
+#define VOC_TAG_LP_PUB_NO_CHANGE_INTERVAL (15 * MINUTE) 
+#define VOC_TAG_LP_PUB_VALUE_CHANGE 50.0f
+#define VOC_TAG_LP_UPDATE_SERVICE_INTERVAL (1 * MINUTE)
+#define VOC_TAG_LP_UPDATE_NORMAL_INTERVAL (5 * MINUTE)
+
+#define HUMIDITY_TAG_PUB_NO_CHANGE_INTEVAL (15 * MINUTE)
 #define HUMIDITY_TAG_PUB_VALUE_CHANGE 5.0f
-#define HUMIDITY_TAG_UPDATE_SERVICE_INTERVAL (5 * 1000)
-#define HUMIDITY_TAG_UPDATE_NORMAL_INTERVAL (10 * 1000)
+#define HUMIDITY_TAG_UPDATE_SERVICE_INTERVAL (5 * MINUTE)
+#define HUMIDITY_TAG_UPDATE_NORMAL_INTERVAL (10 * MINUTE)
 
-#define BAROMETER_TAG_PUB_NO_CHANGE_INTEVAL (15 * 60 * 1000)
+#define BAROMETER_TAG_PUB_NO_CHANGE_INTEVAL (15 * MINUTE)
 #define BAROMETER_TAG_PUB_VALUE_CHANGE 20.0f
-#define BAROMETER_TAG_UPDATE_SERVICE_INTERVAL (1 * 60 * 1000)
-#define BAROMETER_TAG_UPDATE_NORMAL_INTERVAL  (5 * 60 * 1000)
+#define BAROMETER_TAG_UPDATE_SERVICE_INTERVAL (1 * MINUTE)
+#define BAROMETER_TAG_UPDATE_NORMAL_INTERVAL  (5 * MINUTE)
 
-#define CO2_PUB_NO_CHANGE_INTERVAL (15 * 60 * 1000)
+#define CO2_PUB_NO_CHANGE_INTERVAL (15 * MINUTE)
 #define CO2_PUB_VALUE_CHANGE 50.0f
-#define CO2_UPDATE_SERVICE_INTERVAL (1 * 60 * 1000)
-#define CO2_UPDATE_NORMAL_INTERVAL  (5 * 60 * 1000)
+#define CO2_UPDATE_SERVICE_INTERVAL (1 * MINUTE)
+#define CO2_UPDATE_NORMAL_INTERVAL  (5 * MINUTE)
 
-#define CALIBRATION_DELAY (4 * 60 * 1000)
-#define CALIBRATION_INTERVAL (1 * 60 * 1000)
+#define CALIBRATION_DELAY (4 * MINUTE)
+#define CALIBRATION_INTERVAL (1 * MINUTE)
 
 // LED instance
 bc_led_t led;
@@ -34,10 +43,11 @@ bc_button_t button;
 
 // Thermometer instance
 bc_tmp112_t tmp112;
-
-// Temperature tag instance
-bc_tag_temperature_t temperature;
 event_param_t temperature_event_param = { .next_pub = 0 };
+
+// VOC tag instance
+bc_tag_voc_lp_t voc;
+event_param_t voc_event_param = { .next_pub = 0 };
 
 // Humidity tag instance
 bc_tag_humidity_t humidity;
@@ -138,20 +148,41 @@ void battery_event_handler(bc_module_battery_event_t event, void *event_param)
     }
 }
 
-void temperature_tag_event_handler(bc_tag_temperature_t *self, bc_tag_temperature_event_t event, void *event_param)
+void temperature_tag_event_handler(bc_tmp112_t *self, bc_tmp112_event_t event, void *event_param)
 {
     float value;
     event_param_t *param = (event_param_t *)event_param;
 
-    if (event == BC_TAG_TEMPERATURE_EVENT_UPDATE)
+    if (event == BC_TMP112_EVENT_UPDATE)
     {
-        if (bc_tag_temperature_get_temperature_celsius(self, &value))
+        if (bc_tmp112_get_temperature_celsius(self, &value))
         {
             if ((fabsf(value - param->value) >= TEMPERATURE_TAG_PUB_VALUE_CHANGE) || (param->next_pub < bc_scheduler_get_spin_tick()))
             {
                 bc_radio_pub_temperature(param->channel, &value);
                 param->value = value;
                 param->next_pub = bc_scheduler_get_spin_tick() + TEMPERATURE_TAG_PUB_NO_CHANGE_INTEVAL;
+            }
+        }
+    }
+}
+
+void voc_tag_event_handler(bc_tag_voc_lp_t *self, bc_tag_voc_lp_event_t event, void *event_param)
+{
+    uint16_t value;
+    int int_value;
+    event_param_t *param = (event_param_t *)event_param;
+
+    if (event == BC_TAG_VOC_LP_EVENT_UPDATE)
+    {
+        if (bc_tag_voc_lp_get_tvoc_ppb(self, &value))
+        {
+            if ((fabsf(value - param->value) >= VOC_TAG_LP_PUB_VALUE_CHANGE) || (param->next_pub < bc_scheduler_get_spin_tick()))
+            {
+                int_value = value;
+                bc_radio_pub_int("voc-sensor/0:0/tvoc", &int_value);
+                param->value = value;
+                param->next_pub = bc_scheduler_get_spin_tick() + VOC_TAG_LP_PUB_NO_CHANGE_INTERVAL;
             }
         }
     }
@@ -238,7 +269,9 @@ void co2_event_handler(bc_module_co2_event_t event, void *event_param)
 
 void switch_to_normal_mode_task(void *param)
 {
-    bc_tag_temperature_set_update_interval(&temperature, TEMPERATURE_UPDATE_NORMAL_INTERVAL);
+    bc_tag_voc_lp_set_update_interval(&voc, VOC_TAG_LP_UPDATE_NORMAL_INTERVAL);
+
+    bc_tmp112_set_update_interval(&tmp112, TEMPERATURE_UPDATE_NORMAL_INTERVAL);
 
     bc_tag_humidity_set_update_interval(&humidity, HUMIDITY_TAG_UPDATE_NORMAL_INTERVAL);
 
@@ -257,8 +290,11 @@ void application_init(void)
 
     bc_radio_init(BC_RADIO_MODE_NODE_SLEEPING);
 
-    // Initialize thermometer sensor on core module
+    // Initialize temperature
+    temperature_event_param.channel = BC_RADIO_PUB_CHANNEL_R1_I2C0_ADDRESS_DEFAULT;
     bc_tmp112_init(&tmp112, BC_I2C_I2C0, 0x49);
+    bc_tmp112_set_update_interval(&tmp112, TEMPERATURE_UPDATE_SERVICE_INTERVAL);
+    bc_tmp112_set_event_handler(&tmp112, temperature_tag_event_handler, &temperature_event_param);
 
     // Initialize button
     bc_button_init(&button, BC_GPIO_BUTTON, BC_GPIO_PULL_DOWN, false);
@@ -270,11 +306,11 @@ void application_init(void)
     bc_module_battery_set_event_handler(battery_event_handler, NULL);
     bc_module_battery_set_update_interval(BATTERY_UPDATE_INTERVAL);
 
-    // Initialize temperature
-    temperature_event_param.channel = BC_RADIO_PUB_CHANNEL_R1_I2C0_ADDRESS_DEFAULT;
-    bc_tag_temperature_init(&temperature, BC_I2C_I2C0, BC_TAG_TEMPERATURE_I2C_ADDRESS_DEFAULT);
-    bc_tag_temperature_set_update_interval(&temperature, TEMPERATURE_UPDATE_SERVICE_INTERVAL);
-    bc_tag_temperature_set_event_handler(&temperature, temperature_tag_event_handler, &temperature_event_param);
+    // Initialize voc
+    voc_event_param.channel = BC_RADIO_PUB_CHANNEL_R2_I2C0_ADDRESS_DEFAULT;
+    bc_tag_voc_lp_init(&voc, BC_I2C_I2C0);
+    bc_tag_voc_lp_set_update_interval(&voc, VOC_TAG_LP_UPDATE_SERVICE_INTERVAL);
+    bc_tag_voc_lp_set_event_handler(&voc, voc_tag_event_handler, &voc_event_param);
 
     // Initialize humidity
     humidity_event_param.channel = BC_RADIO_PUB_CHANNEL_R3_I2C0_ADDRESS_DEFAULT;
