@@ -7,8 +7,8 @@
 #define SERVICE_INTERVAL_INTERVAL (HOUR)
 #define BATTERY_UPDATE_INTERVAL (HOUR)
 
-#define TEMPERATURE_TAG_PUB_NO_CHANGE_INTEVAL (15 * MINUTE)
-#define TEMPERATURE_TAG_PUB_VALUE_CHANGE 0.2f
+#define TEMPERATURE_PUB_NO_CHANGE_INTEVAL (15 * MINUTE)
+#define TEMPERATURE_PUB_VALUE_CHANGE 0.2f
 #define TEMPERATURE_UPDATE_SERVICE_INTERVAL (5 * MINUTE)
 #define TEMPERATURE_UPDATE_NORMAL_INTERVAL (10 * MINUTE)
 
@@ -148,7 +148,7 @@ void battery_event_handler(bc_module_battery_event_t event, void *event_param)
     }
 }
 
-void temperature_tag_event_handler(bc_tmp112_t *self, bc_tmp112_event_t event, void *event_param)
+void temperature_event_handler(bc_tmp112_t *self, bc_tmp112_event_t event, void *event_param)
 {
     float value;
     event_param_t *param = (event_param_t *)event_param;
@@ -157,11 +157,11 @@ void temperature_tag_event_handler(bc_tmp112_t *self, bc_tmp112_event_t event, v
     {
         if (bc_tmp112_get_temperature_celsius(self, &value))
         {
-            if ((fabsf(value - param->value) >= TEMPERATURE_TAG_PUB_VALUE_CHANGE) || (param->next_pub < bc_scheduler_get_spin_tick()))
+            if ((fabsf(value - param->value) >= TEMPERATURE_PUB_VALUE_CHANGE) || (param->next_pub < bc_scheduler_get_spin_tick()))
             {
                 bc_radio_pub_temperature(param->channel, &value);
                 param->value = value;
-                param->next_pub = bc_scheduler_get_spin_tick() + TEMPERATURE_TAG_PUB_NO_CHANGE_INTEVAL;
+                param->next_pub = bc_scheduler_get_spin_tick() + TEMPERATURE_PUB_NO_CHANGE_INTEVAL;
             }
         }
     }
@@ -294,7 +294,7 @@ void application_init(void)
     temperature_event_param.channel = BC_RADIO_PUB_CHANNEL_R1_I2C0_ADDRESS_DEFAULT;
     bc_tmp112_init(&tmp112, BC_I2C_I2C0, 0x49);
     bc_tmp112_set_update_interval(&tmp112, TEMPERATURE_UPDATE_SERVICE_INTERVAL);
-    bc_tmp112_set_event_handler(&tmp112, temperature_tag_event_handler, &temperature_event_param);
+    bc_tmp112_set_event_handler(&tmp112, temperature_event_handler, &temperature_event_param);
 
     // Initialize button
     bc_button_init(&button, BC_GPIO_BUTTON, BC_GPIO_PULL_DOWN, false);
