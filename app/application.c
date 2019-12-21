@@ -329,7 +329,7 @@ void application_init(void)
     bc_module_co2_set_update_interval(CO2_UPDATE_SERVICE_INTERVAL);
     bc_module_co2_set_event_handler(co2_event_handler, &co2_event_param);
 
-    bc_radio_pairing_request("co2-monitor", VERSION);
+    bc_radio_pairing_request("co2-voc-temperature-humidity-pressure", VERSION);
 
     bc_scheduler_register(switch_to_normal_mode_task, NULL, SERVICE_INTERVAL_INTERVAL);
 
