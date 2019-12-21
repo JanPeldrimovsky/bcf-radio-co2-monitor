@@ -35,6 +35,8 @@
 #define CALIBRATION_DELAY (4 * MINUTE)
 #define CALIBRATION_INTERVAL (1 * MINUTE)
 
+#define USE_BAROMETR (false)
+
 // LED instance
 bc_led_t led;
 
@@ -275,7 +277,10 @@ void switch_to_normal_mode_task(void *param)
 
     bc_tag_humidity_set_update_interval(&humidity, HUMIDITY_TAG_UPDATE_NORMAL_INTERVAL);
 
-    bc_tag_barometer_set_update_interval(&barometer, BAROMETER_TAG_UPDATE_NORMAL_INTERVAL);
+    if(USE_BAROMETR)
+    {
+        bc_tag_barometer_set_update_interval(&barometer, BAROMETER_TAG_UPDATE_NORMAL_INTERVAL);
+    }
 
     bc_module_co2_set_update_interval(CO2_UPDATE_NORMAL_INTERVAL);
 
@@ -318,11 +323,15 @@ void application_init(void)
     bc_tag_humidity_set_update_interval(&humidity, HUMIDITY_TAG_UPDATE_SERVICE_INTERVAL);
     bc_tag_humidity_set_event_handler(&humidity, humidity_tag_event_handler, &humidity_event_param);
 
-    // Initialize barometer
-    barometer_event_param.channel = BC_RADIO_PUB_CHANNEL_R1_I2C0_ADDRESS_DEFAULT;
-    bc_tag_barometer_init(&barometer, BC_I2C_I2C0);
-    bc_tag_barometer_set_update_interval(&barometer, BAROMETER_TAG_UPDATE_SERVICE_INTERVAL);
-    bc_tag_barometer_set_event_handler(&barometer, barometer_tag_event_handler, &barometer_event_param);
+
+    if(USE_BAROMETR)
+    {
+        // Initialize barometer
+        barometer_event_param.channel = BC_RADIO_PUB_CHANNEL_R1_I2C0_ADDRESS_DEFAULT;
+        bc_tag_barometer_init(&barometer, BC_I2C_I2C0);
+        bc_tag_barometer_set_update_interval(&barometer, BAROMETER_TAG_UPDATE_SERVICE_INTERVAL);
+        bc_tag_barometer_set_event_handler(&barometer, barometer_tag_event_handler, &barometer_event_param);
+    }
 
     // Initialize CO2
     bc_module_co2_init();
